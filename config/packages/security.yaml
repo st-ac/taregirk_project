@@ -1,45 +1,48 @@
 security:
-    # Définition de l'algorithme pour hasher les mots de passe des utilisateurs
-    password_hashers:
-        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: auto
-         # Interface pour les utilisateurs authentifiés
+  # Définition de l'algorithme pour hasher les mots de passe des utilisateurs
+  password_hashers:
+    Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
+      auto
+      # Interface pour les utilisateurs authentifiés
 
-    # Définition de la source des utilisateurs
-    providers:
-        app_user_provider:
-            entity:
-                class: App\Entity\User         # La classe User de l'application
-                property: email                # Le champ utilisé pour identifier un utilisateur
+  # Définition de la source des utilisateurs
+  providers:
+    app_user_provider:
+      entity:
+        class: App\Entity\User # La classe User de l'application
+        property: email # Le champ utilisé pour identifier un utilisateur
 
-    # Configuration des firewalls (zones de sécurité)
-    firewalls:
-        # Firewall pour l'authentification via JWT
-        login:
-            pattern: ^/api/login
-            stateless: true
-            json_login:
-                check_path: /api/login         # Point d'entrée pour l'authentification
-                username_path: email          # Champ utilisé pour le login
-                password_path: password       # Champ utilisé pour le mot de passe
-                success_handler: lexik_jwt_authentication.handler.authentication_success
-                failure_handler: lexik_jwt_authentication.handler.authentication_failure
-        api:
-            pattern: ^/api
-            stateless: true # Pas de session côté serveur
-            jwt: ~  # Utilisation de JWT pour sécuriser les requêtes
+  # Configuration des firewalls (zones de sécurité)
+  firewalls:
+    # Firewall pour l'authentification via JWT
+    login:
+      pattern: ^/api/login
+      stateless: true
+      json_login:
+        check_path: /api/login # Point d'entrée pour l'authentification
+        username_path: email # Champ utilisé pour le login
+        password_path: password # Champ utilisé pour le mot de passe
+        success_handler: lexik_jwt_authentication.handler.authentication_success
+        failure_handler: lexik_jwt_authentication.handler.authentication_failure
+    api:
+      pattern: ^/api
+      stateless: true # Pas de session côté serveur
+      jwt: ~ # Utilisation de JWT pour sécuriser les requêtes
 
-        # Firewall pour la déconnexion
-        logout:
-            pattern: ^/api/logout
-            stateless: true
+    # Firewall pour la déconnexion
+    logout:
+      pattern: ^/api/logout
+      stateless: true
 
-    # Définition des règles d'accès (access_control)
-    access_control:
-        # Autorisation pour l'authentification (login)
-        - { path: ^/api/login, roles: PUBLIC_ACCESS }
-        - { path: ^/api/register, roles: PUBLIC_ACCESS }
+  # Définition des règles d'accès (access_control)
+  access_control:
+    # Autorisation pour l'authentification (login)
+    - { path: ^/api/login, roles: PUBLIC_ACCESS }
+    - { path: ^/api/register, roles: PUBLIC_ACCESS }
 
-        # Restriction : Seuls les administrateurs peuvent accéder aux routes /api/users
-        - { path: ^/api/users$, roles: ROLE_ADMIN }
-        # Autorisation générale : Seuls les utilisateurs authentifiés peuvent accéder aux autres routes
-        - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+    # Restriction : Seuls les administrateurs peuvent accéder aux routes /api/users
+    - { path: ^/api/users, roles: ROLE_ADMIN }
+    # Restriction : Seuls les administrateurs peuvent accéder aux routes /api/admin
+    - { path: ^/api/admin, roles: ROLE_ADMIN }
+    # Autorisation générale : Seuls les utilisateurs authentifiés peuvent accéder aux autres routes
+    - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

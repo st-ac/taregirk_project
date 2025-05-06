@@ -28,6 +28,9 @@ class Archives
     #[ORM\Column(type: 'datetime_immutable')]
     private ?\DateTimeImmutable $createdAt = null;
 
+    #[ORM\Column(type: 'boolean')]
+    private bool $status = false; //false = utilisateur, true = admin
+
     public function getId(): ?int
     {
         return $this->id;
@@ -80,6 +83,16 @@ class Archives
     public function getCreatedAt(): ?\DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getStatus(): ?bool
+    {
+        return $this->status;
+    }
+    public function setStatus(bool $status): self
+    {
+        $this->status = $status;
+        return $this;
     }
 
     public function setCreatedAt(\DateTimeImmutable $createdAt): self
