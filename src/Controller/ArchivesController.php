@@ -16,19 +16,28 @@ final class ArchivesController extends AbstractController
     #[Route('/create', name: 'create', methods: ['POST'])]
     public function create(Request $request, EntityManagerInterface $em): JsonResponse
     {
-        try {
+        $data = json_decode($request->getContent(), true);
+        if (!isset($data['title'], $data['description'], $data['author'])) {
+            return new JsonResponse(['error' => 'Missing required fields'], 400);
+        }
+    
+        $archive = new Archives();
+        $archive->setTitle($data['title']);
+        $archive->setDescription($data['description']);
+        $archive->setAuthor($data['author']);
+        $archive->setCreatedAt(new \DateTimeImmutable());
+        $status = $this->isGranted('ROLE_ADMIN') ? 'accepted' : 'pending';
+        $archive->setStatus($status);
+        
+        /*
             $title = $request->request->get('title');
             $description = $request->request->get('description');
-            $author = $request->request->get('author');
-            $imageFile = $request->files->get('image');
+            $author = $request->request->get('author');*/
+            //$imageFile = $request->files->get('image');
 
-            if (!$title || !$description || !$author || !$imageFile) {
-                return new JsonResponse(['error' => 'Missing fields'], JsonResponse::HTTP_BAD_REQUEST);
-            }
-
-            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            /*$allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
             if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
-                return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
+                //return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
             }
             $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
 if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
@@ -36,16 +45,18 @@ if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
 }
 
             $fileName = uniqid('archive_') . '.' . $imageFile->guessExtension();
-            $imageFile->move($this->getParameter('upload_image_directory'), $fileName);
+            $imageFile->move($this->getParameter('upload_image_directory'), $fileName);*/
 
-            $archive = new Archives();
+            /*$archive = new Archives();
             $archive->setTitle($title);
             $archive->setDescription($description);
             $archive->setAuthor($author);
-            $archive->setImage('/uploads/images/' . $fileName);
-            $archive->setCreatedAt(new \DateTimeImmutable());
-            $status = $this->isGranted('ROLE_ADMIN') ? true : false;
-            $archive->setStatus($status);
+            $archive->setCreatedAt(new \DateTimeImmutable());*/
+    
+            //$archive->setImage('/uploads/images/' . $fileName);
+            
+            /*$status = $this->isGranted('ROLE_ADMIN') ? true : false;
+            $archive->setStatus($status);*/
 
             $em->persist($archive);
             $em->flush();
@@ -54,12 +65,13 @@ if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
                 'message' => 'Archive successfully created',
                 'archive' => $archive->toArray()
             ], JsonResponse::HTTP_CREATED);
-
-        } catch (\Exception $e) {
-            return new JsonResponse(['error' => 'Error while creating archive'], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
-        }
     }
 
+
+
+
+
+    
     #[Route('', name: 'list', methods: ['GET'])]
     public function index(ArchivesRepository $repo): JsonResponse
     {

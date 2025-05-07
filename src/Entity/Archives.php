@@ -14,7 +14,7 @@ class Archives
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    private ?string $titre = null;
+    private ?string $title = null;
 
     #[ORM\Column(type: "text")]
     private ?string $description = null;
@@ -23,27 +23,27 @@ class Archives
     private ?string $image = null;
 
     #[ORM\Column(length: 255)]
-    private ?string $auteur = null;
+    private ?string $author = null;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private ?\DateTimeImmutable $createdAt = null;
 
-    #[ORM\Column(type: 'boolean')]
-    private bool $status = false; //false = utilisateur, true = admin
+    #[ORM\Column(length: 50)]
+    private ?string $status = 'pending';
 
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    public function getTitre(): ?string
+    public function getTitle(): ?string
     {
-        return $this->titre;
+        return $this->title;
     }
 
-    public function setTitre(string $titre): self
+    public function setTitle(string $title): self
     {
-        $this->titre = $titre;
+        $this->title = $title;
         return $this;
     }
 
@@ -69,14 +69,31 @@ class Archives
         return $this;
     }
 
-    public function getAuteur(): ?string
+    public function getAuthor(): ?string
     {
-        return $this->auteur;
+        return $this->author;
     }
 
-    public function setAuteur(string $auteur): self
+    public function setAuthor(string $author): self
     {
-        $this->auteur = $auteur;
+        $this->author = $author;
+        return $this;
+    }
+
+    
+    public function getStatus(): ?string
+    {
+        return $this->status;
+    }
+    public function setStatus(string $status): self
+    {
+        $allowed = ['pending', 'accepted', 'rejected'];
+    
+        if (!in_array($status, $allowed, true)) {
+            throw new \InvalidArgumentException("Statut invalide : $status");
+        }
+    
+        $this->status = $status;
         return $this;
     }
 
@@ -85,19 +102,22 @@ class Archives
         return $this->createdAt;
     }
 
-    public function getStatus(): ?bool
-    {
-        return $this->status;
-    }
-    public function setStatus(bool $status): self
-    {
-        $this->status = $status;
-        return $this;
-    }
-
     public function setCreatedAt(\DateTimeImmutable $createdAt): self
     {
         $this->createdAt = $createdAt;
         return $this;
+    }
+
+    public function toArray(): array
+    {
+    return [
+        'id' => $this->getId(),
+        'title' => $this->getTitle(),
+        'description' => $this->getDescription(),
+        'image' => $this->getImage(),
+        'author' => $this->getAuthor(),
+        'createdAt' => $this->getCreatedAt()?->format('Y-m-d H:i:s'),
+        'status' => $this->getStatus()
+    ];
     }
 }

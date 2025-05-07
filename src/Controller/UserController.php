@@ -12,24 +12,24 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 
-final class UserController extends AbstractController {
-    #[Route('/api/register', name: 'create_user', methods: ['POST'])]
+#[Route('/api', name: 'taregirk_')]
+final class UserController extends AbstractController 
+{
+    #[Route('/register', name: 'create_user', methods: ['POST'])]
     public function create(Request $request, EntityManagerInterface $em, UserPasswordHasherInterface $passwordHasher): JsonResponse
     {
         // Récupère les données JSON de la requête
         $data = json_decode($request->getContent(), true);
         // Vérifie si les données sont valides
         if (empty($data['userName']) || empty($data['email']) || empty($data['password'])) {
-            return new JsonResponse(['error' => 'Missing required fields'], 400);
+            return new JsonResponse(['error' => 'Missing required fields'], JsonResponse::HTTP_BAD_REQUEST);
         }
         // Crée un nouvel utilisateur
         $user = new User();
         $user->setUserName($data['userName']);
         $user->setEmail($data['email']);
-
         $hashedPassword = $passwordHasher->hashPassword($user, $data['password']);
         $user->setPassword($hashedPassword);
-
         $user->setRoles($data['roles'] ?? ['ROLE_USER']);
 
         // Enregistre l'utilisateur dans la base de données
@@ -37,10 +37,12 @@ final class UserController extends AbstractController {
         $em->flush();
 
         // Retourne une confirmation de création
-        return new JsonResponse(['status' => 'User created'], JsonResponse::HTTP_CREATED);
+        return new JsonResponse([
+            'status' => 'User created'
+        ], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route('/api/users', name: 'user_list', methods: ['GET'])]
+    #[Route('/users', name: 'user_list', methods: ['GET'])]
     public function index(UserRepository $userRepository): JsonResponse
     {
         // Récupère tous les utilisateurs
@@ -55,7 +57,7 @@ final class UserController extends AbstractController {
         // Retourne la liste des utilisateurs
         return new JsonResponse($data, JsonResponse::HTTP_OK);
 }
-    #[Route('/api/user/{id}', name: 'user_show', methods: ['GET'])]
+    #[Route('/user/{id}', name: 'user_show', methods: ['GET'])]
     public function show(User $user): JsonResponse
     {
         // Retourne les détails d'un utilisateur
@@ -65,7 +67,7 @@ final class UserController extends AbstractController {
             'roles' => $user->getRoles(),
         ], JsonResponse::HTTP_OK);
     }
-    #[Route('/api/users/{id}', name: 'user_update', methods: ['PUT'])]
+    #[Route('/users/{id}', name: 'user_update', methods: ['PUT'])]
     public function update(Request $request, User $user, EntityManagerInterface $em): JsonResponse
     {
         // Récupère les données JSON de la requête
@@ -82,7 +84,7 @@ final class UserController extends AbstractController {
         // Retourne une confirmation de mise à jour
         return new JsonResponse(['status' => 'User updated'], JsonResponse::HTTP_OK);
     }
-    #[Route('/api/users/{id}', name: 'user_delete', methods: ['DELETE'])]
+    #[Route('/users/{id}', name: 'user_delete', methods: ['DELETE'])]
     public function delete(User $user, EntityManagerInterface $em): JsonResponse
     {
         // Supprime l'utilisateur

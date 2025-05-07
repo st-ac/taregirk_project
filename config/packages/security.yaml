@@ -41,8 +41,7 @@ security:
     - { path: ^/api/register, roles: PUBLIC_ACCESS }
 
     # Restriction : Seuls les administrateurs peuvent accéder aux routes /api/users
-    - { path: ^/api/users, roles: ROLE_ADMIN }
+    #- { path: ^/api/users, roles: ROLE_ADMIN }
     # Restriction : Seuls les administrateurs peuvent accéder aux routes /api/admin
-    - { path: ^/api/admin, roles: ROLE_ADMIN }
-    # Autorisation générale : Seuls les utilisateurs authentifiés peuvent accéder aux autres routes
-    - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+    #- { path: ^/api/admin, roles: ROLE_ADMIN }
+    - { path: ^/api/archives/create, roles: IS_AUTHENTICATED_REMEMBERED }
