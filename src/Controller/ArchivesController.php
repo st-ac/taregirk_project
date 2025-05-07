@@ -16,47 +16,41 @@ final class ArchivesController extends AbstractController
     #[Route('/create', name: 'create', methods: ['POST'])]
     public function create(Request $request, EntityManagerInterface $em): JsonResponse
     {
-        $data = json_decode($request->getContent(), true);
-        if (!isset($data['title'], $data['description'], $data['author'])) {
-            return new JsonResponse(['error' => 'Missing required fields'], 400);
+        if (!$this->getUser()) {
+            return new JsonResponse(['error' => 'User not authenticated'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-    
-        $archive = new Archives();
-        $archive->setTitle($data['title']);
-        $archive->setDescription($data['description']);
-        $archive->setAuthor($data['author']);
-        $archive->setCreatedAt(new \DateTimeImmutable());
-        $status = $this->isGranted('ROLE_ADMIN') ? 'accepted' : 'pending';
-        $archive->setStatus($status);
+        $title = $request->request->get('title');
+        $description = $request->request->get('description');
+        $author = $request->request->get('author');
         
-        /*
-            $title = $request->request->get('title');
-            $description = $request->request->get('description');
-            $author = $request->request->get('author');*/
-            //$imageFile = $request->files->get('image');
 
-            /*$allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!$title || !$description || !$author) {
+            return new JsonResponse(['error' => 'Missing required fields'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+        
+        $imageFile = $request->files->get('image');
+
+            $allowedMimeTypes = ['image/jpeg', 'image/jpg','image/png', 'image/webp'];
             if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
-                //return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
             }
             $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
-    return new JsonResponse(['error' => 'Invalid file extension'], JsonResponse::HTTP_BAD_REQUEST);
+            if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
+                return new JsonResponse(['error' => 'Invalid file extension'], JsonResponse::HTTP_BAD_REQUEST);
 }
 
             $fileName = uniqid('archive_') . '.' . $imageFile->guessExtension();
-            $imageFile->move($this->getParameter('upload_image_directory'), $fileName);*/
+            $imageFile->move($this->getParameter('upload_image_directory'), $fileName);
 
-            /*$archive = new Archives();
+            $archive = new Archives();
             $archive->setTitle($title);
             $archive->setDescription($description);
             $archive->setAuthor($author);
-            $archive->setCreatedAt(new \DateTimeImmutable());*/
-    
-            //$archive->setImage('/uploads/images/' . $fileName);
-            
-            /*$status = $this->isGranted('ROLE_ADMIN') ? true : false;
-            $archive->setStatus($status);*/
+            $archive->setCreatedAt(new \DateTimeImmutable());
+            $status = $this->isGranted('ROLE_ADMIN') ? 'accepted' : 'pending';
+            $archive->setStatus($status);
+            $archive->setImage('/uploads/images/' . $fileName);
+
 
             $em->persist($archive);
             $em->flush();
@@ -75,7 +69,7 @@ if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
     #[Route('', name: 'list', methods: ['GET'])]
     public function index(ArchivesRepository $repo): JsonResponse
     {
-        $archives = $repo->findBy(['status' => true]);
+        $archives = $repo->findBy(['status' => 'accepted']);
         $data = array_map(fn($a) => $a->toArray(), $archives);
 
         return new JsonResponse($data, JsonResponse::HTTP_OK);
@@ -84,7 +78,10 @@ if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
     #[Route('/admin/pending', name: 'pending', methods: ['GET'])]
     public function getPendingArchives(ArchivesRepository $repo): JsonResponse
     {
-        $pending = $repo->findBy(['status' => false]);
+        $pending = $repo->findBy(['status' => 'pending']);
+        if (empty($pending)) {
+            return new JsonResponse(['message' => 'No pending archives'], JsonResponse::HTTP_OK);
+        }
         $data = array_map(fn($a) => $a->toArray(), $pending);
 
         return new JsonResponse($data, JsonResponse::HTTP_OK);
@@ -188,3 +185,14 @@ if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
         return $archive;
     }
 }
+
+
+
+
+
+/*$archive = new Archives();
+            $archive->setTitle($title);
+            $archive->setDescription($description);
+            $archive->setAuthor($author);
+            $archive->setCreatedAt(new \DateTimeImmutable());*/
+    

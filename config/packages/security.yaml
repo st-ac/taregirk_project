@@ -10,7 +10,7 @@ security:
     app_user_provider:
       entity:
         class: App\Entity\User # La classe User de l'application
-        property: email # Le champ utilisé pour identifier un utilisateur
+        property: userName # Le champ utilisé pour identifier un utilisateur
 
   # Configuration des firewalls (zones de sécurité)
   firewalls:
@@ -19,8 +19,8 @@ security:
       pattern: ^/api/login
       stateless: true
       json_login:
-        check_path: /api/login # Point d'entrée pour l'authentification
-        username_path: email # Champ utilisé pour le login
+        check_path: /api/login_check # Point d'entrée pour l'authentification
+        username_path: userName # Champ utilisé pour le login
         password_path: password # Champ utilisé pour le mot de passe
         success_handler: lexik_jwt_authentication.handler.authentication_success
         failure_handler: lexik_jwt_authentication.handler.authentication_failure
@@ -41,7 +41,8 @@ security:
     - { path: ^/api/register, roles: PUBLIC_ACCESS }
 
     # Restriction : Seuls les administrateurs peuvent accéder aux routes /api/users
-    #- { path: ^/api/users, roles: ROLE_ADMIN }
+    - { path: ^/api/users, roles: ROLE_ADMIN }
     # Restriction : Seuls les administrateurs peuvent accéder aux routes /api/admin
-    #- { path: ^/api/admin, roles: ROLE_ADMIN }
-    - { path: ^/api/archives/create, roles: IS_AUTHENTICATED_REMEMBERED }
+    - { path: ^/api/admin, roles: ROLE_ADMIN }
+    - { path: ^/api/archives/admin, roles: ROLE_ADMIN }
+    - { path: ^/api/archives/create, roles: ROLE_USER }
