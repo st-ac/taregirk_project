@@ -29,6 +29,7 @@ final class ArchivesController extends AbstractController
         }
         
         $imageFile = $request->files->get('image');
+        
 
             $allowedMimeTypes = ['image/jpeg', 'image/jpg','image/png', 'image/webp'];
             if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
@@ -41,6 +42,7 @@ final class ArchivesController extends AbstractController
 
             $fileName = uniqid('archive_') . '.' . $imageFile->guessExtension();
             $imageFile->move($this->getParameter('upload_image_directory'), $fileName);
+           
 
             $archive = new Archives();
             $archive->setTitle($title);
@@ -62,7 +64,65 @@ final class ArchivesController extends AbstractController
     }
 
 
+    #[Route('/{id}', name: 'update', methods: ['POST'])]
+    public function update(Request $request, Archives $archive, EntityManagerInterface $em): JsonResponse
+    {
+        $title = $request->request->get('title');
+        $description = $request->request->get('description');
+        $author = $request->request->get('author');
+    
+        if ($title) {
+            $archive->setTitle($title);
+        }
+    
+        if ($description) {
+            $archive->setDescription($description);
+        }
+    
+        if ($author) {
+            $archive->setAuthor($author);
+        }
 
+        $imageFile = $request->files->get('image');
+        
+        if ($imageFile) {
+            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+        if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
+            return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+       if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
+            return new JsonResponse(['error' => 'Invalid file extension'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+    
+        // Suppression de l’ancienne image si elle existe
+        $oldImagePath = $this->getParameter('kernel.project_dir') . '/public' . $archive->getImage();
+        if ($archive->getImage() && file_exists($oldImagePath)) {
+            unlink($oldImagePath);
+        }
+    
+        // Génération d’un nouveau nom de fichier
+        $fileName = uniqid('archive_') . '.' . $imageFile->guessExtension();
+        $imageFile->move($this->getParameter('upload_image_directory'), $fileName);
+        $archive->setImage('/uploads/images/' . $fileName);
+        }
+        
+    
+        // Mise à jour des champs
+        /*$archive->setTitle($title);
+        $archive->setDescription($description);
+        $archive->setAuthor($author);*/
+    
+        $em->flush();
+    
+        return new JsonResponse([
+            'message' => 'Archive updated',
+            'archive_id' => $archive->getId()
+        ], JsonResponse::HTTP_OK);
+    }
+    
 
 
     
@@ -96,49 +156,7 @@ final class ArchivesController extends AbstractController
         return new JsonResponse($archive->toArray(), JsonResponse::HTTP_OK);
     }
 
-    #[Route('/{id}', name: 'update', methods: ['PUT'])]
-    public function update(Request $request, Archives $archive, EntityManagerInterface $em): JsonResponse
-    {
-        $title = $request->request->get('title');
-        $description = $request->request->get('description');
-        $author = $request->request->get('author');
-        $imageFile = $request->files->get('image');
-    
-        if (!$title || !$description || !$author) {
-            return new JsonResponse(['error' => 'Missing fields'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-    
-        // Vérification du type de fichier image
-        $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-        if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
-            return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
-    return new JsonResponse(['error' => 'Invalid file extension'], JsonResponse::HTTP_BAD_REQUEST);
-}
-    
-        // Suppression de l’ancienne image si elle existe
-        $oldImagePath = $this->getParameter('kernel.project_dir') . '/public' . $archive->getImage();
-        if (file_exists($oldImagePath)) {
-            unlink($oldImagePath);
-        }
-    
-        // Génération d’un nouveau nom de fichier
-        $fileName = uniqid('archive_') . '.' . $imageFile->guessExtension();
-        $imageFile->move($this->getParameter('upload_image_directory'), $fileName);
-    
-        // Mise à jour des champs
-        $archive->setTitle($title);
-        $archive->setDescription($description);
-        $archive->setAuthor($author);
-        $archive->setImage('/uploads/images/' . $fileName);
-    
-        $em->flush();
-    
-        return new JsonResponse(['message' => 'Archive updated'], JsonResponse::HTTP_OK);
-    }
-    
+
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     public function delete(Archives $archive, EntityManagerInterface $em): JsonResponse
@@ -155,44 +173,22 @@ if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
     }
 
     #[Route('/admin/{id}/review', name: 'review', methods: ['PATCH'])]
-    public function reviewArchive(int $id, Request $request, EntityManagerInterface $em): JsonResponse
+    public function review(Request $request, Archives $archive, EntityManagerInterface $em): JsonResponse
     {
-        $archive = $this->findArchiveOr404($id, $em);
         $data = json_decode($request->getContent(), true);
-        $action = $data['action'] ?? null;
-
-        if (!in_array($action, ['accept', 'reject'], true)) {
-            return new JsonResponse(['error' => 'Invalid action'], JsonResponse::HTTP_BAD_REQUEST);
-        }
+        $action = $data['status'] ?? null;
 
         if ($action === 'accept') {
-            $archive->setStatus(true);
+            $archive->setStatus("accepted");
             $em->flush();
-            return new JsonResponse(['message' => 'Archive accepted']);
+            return new JsonResponse(['message' => 'Archive accepted'], JsonResponse::HTTP_OK);
+        }
+        if ($action === 'reject') {
+            $em->remove($archive);
+            $em->flush();
+            return new JsonResponse(['message' => 'Archive rejected and deleted'], JsonResponse::HTTP_OK);
         }
 
-        $em->remove($archive);
-        $em->flush();
-        return new JsonResponse(['message' => 'Archive rejected and deleted']);
-    }
-
-    private function findArchiveOr404(int $id, EntityManagerInterface $em): Archives
-    {
-        $archive = $em->getRepository(Archives::class)->find($id);
-        if (!$archive) {
-            throw $this->createNotFoundException('Archive not found');
-        }
-        return $archive;
+        return new JsonResponse(['error' => 'Invalid action'], JsonResponse::HTTP_BAD_REQUEST);
     }
 }
-
-
-
-
-
-/*$archive = new Archives();
-            $archive->setTitle($title);
-            $archive->setDescription($description);
-            $archive->setAuthor($author);
-            $archive->setCreatedAt(new \DateTimeImmutable());*/
-    
