@@ -2,16 +2,14 @@
 
 namespace App\Entity;
 
-use App\Repository\ArchivesRepository;
+use App\Repository\CategoryRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
-use App\Entity\Category;  
-use App\Entity\Citation;
+use App\Entity\Archives; 
 
-
-#[ORM\Entity(repositoryClass: ArchivesRepository::class)]
-class Archives
+#[ORM\Entity(repositoryClass: CategoryRepository::class)]
+class Category
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -21,34 +19,23 @@ class Archives
     #[ORM\Column(length: 255)]
     private ?string $title = null;
 
-    #[ORM\ManyToMany(mappedBy: 'archives', targetEntity: Category::class)]
-    private Collection $category;
-   
-     #[ORM\ManyToMany(mappedBy: 'archives', targetEntity: Citation::class)]
-    private Collection $citations;
-
-    public function __construct()
-    {
-        $this->citations = new ArrayCollection();
-        $this->category = new ArrayCollection();
-    }
-
-    #[ORM\Column(type: "text")]
+    #[ORM\Column(length: 255)]
     private ?string $description = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $image = null;
+    #[ORM\ManyToMany(targetEntity: Archives::class, inversedBy: 'category')]
+    private Collection $archives;
+    public function __construct()
+    {
+        $this->archives = new ArrayCollection();
+    }
 
     #[ORM\Column(length: 255)]
-    private ?string $author = null;
+    private ?string $image = null;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private ?\DateTimeImmutable $createdAt = null;
 
-    #[ORM\Column(length: 50)]
-    private ?string $status = 'pending';
-
-    public function getId(): ?int
+     public function getId(): ?int
     {
         return $this->id;
     }
@@ -86,34 +73,6 @@ class Archives
         return $this;
     }
 
-    public function getAuthor(): ?string
-    {
-        return $this->author;
-    }
-
-    public function setAuthor(string $author): self
-    {
-        $this->author = $author;
-        return $this;
-    }
-
-    
-    public function getStatus(): ?string
-    {
-        return $this->status;
-    }
-    public function setStatus(string $status): self
-    {
-        $allowed = ['pending', 'accepted', 'rejected'];
-    
-        if (!in_array($status, $allowed, true)) {
-            throw new \InvalidArgumentException("Statut invalide : $status");
-        }
-    
-        $this->status = $status;
-        return $this;
-    }
-
     public function getCreatedAt(): ?\DateTimeImmutable
     {
         return $this->createdAt;
@@ -132,9 +91,7 @@ class Archives
         'title' => $this->getTitle(),
         'description' => $this->getDescription(),
         'image' => $this->getImage(),
-        'author' => $this->getAuthor(),
         'createdAt' => $this->getCreatedAt()?->format('Y-m-d H:i:s'),
-        'status' => $this->getStatus()
     ];
     }
 }
