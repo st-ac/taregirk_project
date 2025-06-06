@@ -21,11 +21,5 @@ pipeline {
             """
             }
         }
-        stage('composer') {
-            agent { label 'agent-php' }
-            steps {
-                sh 'composer install --no-dev'
-            }
-        }
     }
 }
