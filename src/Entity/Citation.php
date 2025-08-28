@@ -1,15 +1,11 @@
 <?php
+
 namespace App\Entity;
 
-use App\Repository\CitationRepository;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
-use App\Entity\Archives; 
 
-
-
-#[ORM\Entity(repositoryClass: CitationRepository::class)]
+#[ORM\Entity]
+#[ORM\Table(name: "citation")]
 class Citation
 {
     #[ORM\Id]
@@ -17,34 +13,36 @@ class Citation
     #[ORM\Column(type: "integer")]
     private ?int $id = null;
 
+    #[ORM\Column(length: 255)]
+    private ?string $author = null;
+
     #[ORM\Column(type: "text")]
-    private string $description;
+    private ?string $description = null;
 
-    #[ORM\Column(type: "string", length: 45)]
-    private string $auteur;
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $image = null;
 
-    #[ORM\Column(type: "date")]
-    private \DateTimeInterface $date;
-
-    #[ORM\Column(type: "string", length: 500)]
-    private string $image;
-
-    #[ORM\ManyToMany(targetEntity: Archives::class, inversedBy: 'citations')]
-    private Collection $archives;
-
-    public function __construct()
-    {
-        $this->archives = new ArrayCollection();
-    }
-
-    // Getters et setters
+    #[ORM\ManyToOne(targetEntity: Archives::class)]
+    #[ORM\JoinColumn(name: "archivesid_FK", nullable: true)]
+    private ?Archives $archive = null;
 
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    public function getDescription(): string
+    public function getAuthor(): ?string
+    {
+        return $this->author;
+    }
+
+    public function setAuthor(string $author): self
+    {
+        $this->author = $author;
+        return $this;
+    }
+
+    public function getDescription(): ?string
     {
         return $this->description;
     }
@@ -55,60 +53,25 @@ class Citation
         return $this;
     }
 
-    public function getAuteur(): string
-    {
-        return $this->auteur;
-    }
-
-    public function setAuteur(string $auteur): self
-    {
-        $this->auteur = $auteur;
-        return $this;
-    }
-
-    public function getDate(): \DateTimeInterface
-    {
-        return $this->date;
-    }
-
-    public function setDate(\DateTimeInterface $date): self
-    {
-        $this->date = $date;
-        return $this;
-    }
-
-    public function getImage(): string
+    public function getImage(): ?string
     {
         return $this->image;
     }
 
-    public function setImage(string $image): self
+    public function setImage(?string $image): self
     {
         $this->image = $image;
         return $this;
     }
 
-    public function getArchives(): Collection
-    {
-        return $this->archives;
-    }
+    public function getArchive(): ?Archives
+{
+    return $this->archive;
+}
 
-    public function addArchive(Archive $archive): self
-    {
-        if (!$this->archives->contains($archive)) {
-            $this->archives[] = $archive;
-            $archive->addCitation($this);
-        }
-
-        return $this;
-    }
-
-    public function removeArchive(Archive $archive): self
-    {
-        if ($this->archives->removeElement($archive)) {
-            $archive->removeCitation($this);
-        }
-
-        return $this;
-    }
+public function setArchive(?Archives $archive): self
+{
+    $this->archive = $archive;
+    return $this;
+}
 }

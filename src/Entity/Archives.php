@@ -2,58 +2,54 @@
 
 namespace App\Entity;
 
-use App\Repository\ArchivesRepository;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
+use App\Repository\ArchiveRepository;
 use Doctrine\ORM\Mapping as ORM;
-use App\Entity\Category;  
-use App\Entity\Citation;
+use App\Entity\User;
+use App\Entity\Category;
 
-
-#[ORM\Entity(repositoryClass: ArchivesRepository::class)]
+#[ORM\Entity(repositoryClass: ArchiveRepository::class)]
 class Archives
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column]
+    #[ORM\Id, ORM\GeneratedValue, ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\Column(length: 255)]
-    private ?string $title = null;
+    #[ORM\Column(type: 'string', length: 255)]
+    private string $title;
 
-    #[ORM\ManyToMany(mappedBy: 'archives', targetEntity: Category::class)]
-    private Collection $category;
-   
-     #[ORM\ManyToMany(mappedBy: 'archives', targetEntity: Citation::class)]
-    private Collection $citations;
+    #[ORM\Column(type: 'text')]
+    private string $description;
+
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $images = [];
+
+    #[ORM\Column(type: 'datetime_immutable')]
+    private \DateTimeImmutable $createdAt;
+
+    #[ORM\Column(type: 'string', length: 50)]
+    private string $status = 'pending';
+
+    #[ORM\Column(type: 'string', length: 255)]
+    private string $author;
+
+    #[ORM\ManyToOne(targetEntity: User::class, inversedBy: "archives")]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?User $user = null;
+
+    #[ORM\ManyToOne(targetEntity: Category::class, inversedBy: "archives")]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?Category $category = null;
 
     public function __construct()
     {
-        $this->citations = new ArrayCollection();
-        $this->category = new ArrayCollection();
+        $this->createdAt = new \DateTimeImmutable();
     }
-
-    #[ORM\Column(type: "text")]
-    private ?string $description = null;
-
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $image = null;
-
-    #[ORM\Column(length: 255)]
-    private ?string $author = null;
-
-    #[ORM\Column(type: 'datetime_immutable')]
-    private ?\DateTimeImmutable $createdAt = null;
-
-    #[ORM\Column(length: 50)]
-    private ?string $status = 'pending';
 
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    public function getTitle(): ?string
+    public function getTitle(): string
     {
         return $this->title;
     }
@@ -64,7 +60,7 @@ class Archives
         return $this;
     }
 
-    public function getDescription(): ?string
+    public function getDescription(): string
     {
         return $this->description;
     }
@@ -75,18 +71,24 @@ class Archives
         return $this;
     }
 
-    public function getImage(): ?string
-    {
-        return $this->image;
-    }
+    public function getImages(): ?array
+{
+    return $this->images;
+}
 
-    public function setImage(string $image): self
-    {
-        $this->image = $image;
-        return $this;
-    }
+public function setImages(?array $images): self
+{
+    $this->images = $images;
+    return $this;
+}
 
-    public function getAuthor(): ?string
+public function addImages(string $images): self
+{
+    $this->images[] = $images;
+    return $this;
+}
+
+    public function getAuthor(): string
     {
         return $this->author;
     }
@@ -97,44 +99,66 @@ class Archives
         return $this;
     }
 
-    
-    public function getStatus(): ?string
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function setUser(?User $user): self
+    {
+        $this->user = $user;
+        return $this;
+    }
+
+    public function getStatus(): string
     {
         return $this->status;
     }
+
     public function setStatus(string $status): self
     {
         $allowed = ['pending', 'accepted', 'rejected'];
-    
         if (!in_array($status, $allowed, true)) {
             throw new \InvalidArgumentException("Statut invalide : $status");
         }
-    
         $this->status = $status;
         return $this;
     }
 
-    public function getCreatedAt(): ?\DateTimeImmutable
+    public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }
 
     public function setCreatedAt(\DateTimeImmutable $createdAt): self
+{
+    $this->createdAt = $createdAt;
+    return $this;
+}
+
+    public function getCategory(): ?Category
     {
-        $this->createdAt = $createdAt;
+        return $this->category;
+    }
+
+    public function setCategory(?Category $category): self
+    {
+        $this->category = $category;
         return $this;
     }
 
     public function toArray(): array
     {
-    return [
-        'id' => $this->getId(),
-        'title' => $this->getTitle(),
-        'description' => $this->getDescription(),
-        'image' => $this->getImage(),
-        'author' => $this->getAuthor(),
-        'createdAt' => $this->getCreatedAt()?->format('Y-m-d H:i:s'),
-        'status' => $this->getStatus()
-    ];
+        return [
+            'id' => $this->getId(),
+            'title' => $this->getTitle(),
+            'description' => $this->getDescription(),
+            'images' => $this->getImages(),
+            'author' => $this->getAuthor(),
+            'status' => $this->getStatus(),
+            'createdAt' => $this->getCreatedAt()->format('Y-m-d H:i:s'),
+            'category' => $this->getCategory()?->getTitle(),
+            'user' => $this->getUser()?->getUsername(), // si tu as un getUsername()
+        ];
     }
 }

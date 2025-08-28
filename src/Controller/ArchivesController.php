@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Repository\CategoryRepository;
 use App\Entity\Archives;
 use App\Repository\ArchivesRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -13,56 +14,80 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 #[Route('/api/archives', name: 'archives_')]
 final class ArchivesController extends AbstractController
 {
-    #[Route('/create', name: 'create', methods: ['POST'])]
-    public function create(Request $request, EntityManagerInterface $em): JsonResponse
-    {
-        if (!$this->getUser()) {
-            return new JsonResponse(['error' => 'User not authenticated'], JsonResponse::HTTP_UNAUTHORIZED);
-        }
-        $title = $request->request->get('title');
-        $description = $request->request->get('description');
-        $author = $request->request->get('author');
-        
+   #[Route('/create', name: 'create', methods: ['POST'])]
+public function create(
+    Request $request,
+    EntityManagerInterface $em,
+    CategoryRepository $categoryRepo
+): JsonResponse {
+    // Vérification de l'utilisateur
+    if (!$this->getUser()) {
+        return new JsonResponse(['error' => 'User not authenticated'], JsonResponse::HTTP_UNAUTHORIZED);
+    }
 
-        if (!$title || !$description || !$author) {
-            return new JsonResponse(['error' => 'Missing required fields'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-        
-        $imageFile = $request->files->get('image');
-        
+    // Récupération des champs
+    $title = $request->request->get('title');
+    $description = $request->request->get('description');
+    $author = $request->request->get('author');
+    $categoryId = $request->request->get('category_id');
 
-            $allowedMimeTypes = ['image/jpeg', 'image/jpg','image/png', 'image/webp'];
+    // Vérification des champs obligatoires
+    if (!$title || !$description || !$author || !$categoryId) {
+        return new JsonResponse(['error' => 'Missing required fields'], JsonResponse::HTTP_BAD_REQUEST);
+    }
+
+    // Récupération de la catégorie
+    $category = $categoryRepo->find($categoryId);
+    if (!$category) {
+        return new JsonResponse(['error' => 'Invalid category'], JsonResponse::HTTP_BAD_REQUEST);
+    }
+
+    // Gestion des images
+    $imageFiles = $request->files->get('images');
+if ($imageFiles && !is_array($imageFiles)) {
+    $imageFiles = [$imageFiles];
+}
+$uploadedImages = [];
+
+    if ($imageFiles && is_array($imageFiles)) {
+        $allowedMimeTypes = ['image/jpeg', 'image/jpg','image/png', 'image/webp'];
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+        foreach ($imageFiles as $imageFile) {
             if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
                 return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
             }
-            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
             if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
                 return new JsonResponse(['error' => 'Invalid file extension'], JsonResponse::HTTP_BAD_REQUEST);
-}
+            }
 
             $fileName = uniqid('archive_') . '.' . $imageFile->guessExtension();
             $imageFile->move($this->getParameter('upload_image_directory'), $fileName);
-           
 
-            $archive = new Archives();
-            $archive->setTitle($title);
-            $archive->setDescription($description);
-            $archive->setAuthor($author);
-            $archive->setCreatedAt(new \DateTimeImmutable());
-            $status = $this->isGranted('ROLE_ADMIN') ? 'accepted' : 'pending';
-            $archive->setStatus($status);
-            $archive->setImage('/uploads/images/' . $fileName);
-
-
-            $em->persist($archive);
-            $em->flush();
-
-            return new JsonResponse([
-                'message' => 'Archive successfully created',
-                'archive' => $archive->toArray()
-            ], JsonResponse::HTTP_CREATED);
+            $uploadedImages[] = '/uploads/images/' . $fileName;
+        }
     }
 
+    // Création de l'archive
+    $archive = new Archives();
+    $archive->setTitle($title);
+    $archive->setDescription($description);
+    $archive->setAuthor($author);
+    $archive->setCreatedAt(new \DateTimeImmutable());
+    $status = $this->isGranted('ROLE_ADMIN') ? 'accepted' : 'pending';
+    $archive->setStatus($status);
+    $archive->setImages($uploadedImages);
+    $archive->setCategory($category); // <-- association de la catégorie
+
+    $em->persist($archive);
+    $em->flush();
+
+    return new JsonResponse([
+        'message' => 'Archive successfully created',
+        'archive' => $archive->toArray()
+    ], JsonResponse::HTTP_CREATED);
+}
 
     #[Route('/{id}', name: 'update', methods: ['POST'])]
     public function update(Request $request, Archives $archive, EntityManagerInterface $em): JsonResponse

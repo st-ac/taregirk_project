@@ -2,9 +2,12 @@
 
 namespace App\Entity;
 
+use App\Entity\Archive;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'user')]
@@ -16,7 +19,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?int $id = null;
 
     #[ORM\Column(type: 'string', length: 100)]
-    private ?string $userName = null;
+    private ?string $username = null;
 
     #[ORM\Column(type: 'string', unique: true)]
     private ?string $email = null;
@@ -27,20 +30,28 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'string')]
     private ?string $password = null;
 
+    #[ORM\OneToMany(mappedBy: "user", targetEntity: Archives::class)]
+    private Collection $archives;
+
+    public function __construct()
+{
+    $this->archives = new ArrayCollection();
+}
+
+public function getId(): ?int
+{
+    return $this->id;
+}
+
     public function getUserIdentifier(): string
     {
-        return $this->userName;
+        return $this->username;
     }
 
     public function getRoles(): array
     {
         $roles = $this->roles;
         $roles[] = 'ROLE_USER';
-
-        if (in_array('ROLE_ADMIN', $this->roles)) {
-            $roles[] = 'ROLE_ADMIN';
-        }
-
         return array_unique($roles);
     }
 
@@ -75,14 +86,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getuserName(): ?string
+    public function getUsername(): ?string
     {
-        return $this->userName;
+        return $this->username;
     }
 
-    public function setUserName(string $userName): self
+    public function setUsername(string $username): self
     {
-        $this->userName = $userName;
+        $this->username = $username;
 
         return $this;
     }
@@ -91,5 +102,29 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function eraseCredentials(): void
     {
+    }
+
+    public function getArchives(): Collection
+    {
+        return $this->archives;
+    }
+
+    public function addArchives(Archives $archive): self
+    {
+        if (!$this->archives->contains($archive)) {
+            $this->archives->add($archive);
+            $archive->setUser($this);
+        }
+        return $this;
+    }
+
+    public function removeArchives(Archives $archive): self
+    {
+        if ($this->archives->removeElement($archive)) {
+            if ($archive->getUser() === $this) {
+                $archive->setUser(null);
+            }
+        }
+        return $this;
     }
 }
