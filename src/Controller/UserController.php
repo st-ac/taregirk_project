@@ -57,16 +57,33 @@ final class UserController extends AbstractController
         // Retourne la liste des utilisateurs
         return new JsonResponse($data, JsonResponse::HTTP_OK);
 }
-    #[Route('/user/{id}', name: 'user_show', methods: ['GET'])]
-    public function show(User $user): JsonResponse
+
+    #[Route('/users/me', name: 'user_me', methods: ['GET'])]
+    public function me(): JsonResponse
     {
-        // Retourne les détails d'un utilisateur
-        return new JsonResponse([
-            'username' => $user->getUsername(),
-            'email' => $user->getEmail(),
-            'roles' => $user->getRoles(),
-        ], JsonResponse::HTTP_OK);
+    $user = $this->getUser();
+
+    if (!$user) {
+        return $this->json(['error' => 'Non connecté'], 401);
     }
+
+    // Préparer les archives
+    $archives = $user->getArchives()->map(fn($a) => [
+        'id' => $a->getId(),
+        'title' => $a->getTitle(),
+        'description' => $a->getDescription(),
+        'status' => $a->getStatus(),
+        'createdAt' => $a->getCreatedAt()->format('Y-m-d H:i:s'),
+    ])->toArray();
+
+    return $this->json([
+        'id' => $user->getId(),
+        'username' => $user->getUsername(),
+        'email' => $user->getEmail(),
+        'roles' => $user->getRoles(),
+        'archives' => $archives
+    ]);
+}
     #[Route('/users/{id}/password', name: 'user_update_password', methods: ['PUT'])]
     public function updatePassword(int $id, Request $request, UserRepository $userRepository, UserPasswordHasherInterface $passwordHasher, EntityManagerInterface $em): JsonResponse 
     {
@@ -117,14 +134,25 @@ final class UserController extends AbstractController
         // Retourne une confirmation de mise à jour
         return new JsonResponse(['status' => 'User updated'], JsonResponse::HTTP_OK);
     }
+    
     #[Route('/users/{id}', name: 'user_delete', methods: ['DELETE'])]
-    public function delete(User $user, EntityManagerInterface $em): JsonResponse
-    {
-        // Supprime l'utilisateur
-        $em->remove($user);
-        $em->flush();
+public function delete(
+    User $user,
+    EntityManagerInterface $em
+): JsonResponse {
+    $currentUser = $this->getUser();
 
-        // Retourne une confirmation de suppression
-        return new JsonResponse(['status' => 'User deleted'], JsonResponse::HTTP_OK);
+    if (!$currentUser) {
+        return new JsonResponse(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
     }
+
+    if ($currentUser->getId() !== $user->getId()) {
+        return new JsonResponse(['error' => 'Access denied'], JsonResponse::HTTP_FORBIDDEN);
+    }
+
+    $em->remove($user);
+    $em->flush();
+
+    return new JsonResponse(['status' => 'User deleted'], JsonResponse::HTTP_OK);
+}
 }

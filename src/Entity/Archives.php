@@ -2,12 +2,11 @@
 
 namespace App\Entity;
 
-use App\Repository\ArchiveRepository;
 use Doctrine\ORM\Mapping as ORM;
 use App\Entity\User;
 use App\Entity\Category;
 
-#[ORM\Entity(repositoryClass: ArchiveRepository::class)]
+#[ORM\Entity]
 class Archives
 {
     #[ORM\Id, ORM\GeneratedValue, ORM\Column(type: 'integer')]
@@ -19,8 +18,8 @@ class Archives
     #[ORM\Column(type: 'text')]
     private string $description;
 
-    #[ORM\Column(type: 'json', nullable: true)]
-    private ?array $images = [];
+    #[ORM\Column(type: 'json')]
+    private array $images = [];
 
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
@@ -32,7 +31,7 @@ class Archives
     private string $author;
 
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: "archives")]
-    #[ORM\JoinColumn(nullable: true)]
+    #[ORM\JoinColumn(nullable: false)]
     private ?User $user = null;
 
     #[ORM\ManyToOne(targetEntity: Category::class, inversedBy: "archives")]
@@ -148,17 +147,18 @@ public function addImages(string $images): self
     }
 
     public function toArray(): array
-    {
-        return [
-            'id' => $this->getId(),
-            'title' => $this->getTitle(),
-            'description' => $this->getDescription(),
-            'images' => $this->getImages(),
-            'author' => $this->getAuthor(),
-            'status' => $this->getStatus(),
-            'createdAt' => $this->getCreatedAt()->format('Y-m-d H:i:s'),
-            'category' => $this->getCategory()?->getTitle(),
-            'user' => $this->getUser()?->getUsername(), // si tu as un getUsername()
-        ];
-    }
+{
+    return [
+        'id'         => $this->getId(),
+        'title'      => $this->getTitle(),
+        'description'=> $this->getDescription(),
+        'author'     => $this->getAuthor(),
+        'status'     => $this->getStatus(),
+        'createdAt'  => $this->getCreatedAt()?->format('Y-m-d H:i:s'),
+        'images'     => $this->getImages() ?? [], 
+        'category'   => $this->getCategory()?->getTitle(),
+        'user'       => $this->getUser()?->getUsername(),
+    ];
+}
+    
 }

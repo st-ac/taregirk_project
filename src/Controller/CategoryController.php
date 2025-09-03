@@ -54,39 +54,39 @@ class CategoryController extends AbstractController
 
 
     #[Route('', name: 'category_list', methods: ['GET'])]
-    public function index(CategoryRepository $repo): JsonResponse
+public function index(CategoryRepository $repo): JsonResponse
 {
     $categories = $repo->findAll();
-    $data = [];
 
-    foreach ($categories as $cat) {
-        $data[] = [
-            'id' => $cat->getId(),
-            'title' => $cat->getTitle(),
-            'description' => $cat->getDescription(),
-        ];
-    }
+    $data = array_map(fn($cat) => $cat->toArray(), $categories);
 
     return $this->json($data);
 }
 
-
-    #[Route('/{id}', name: 'category_show', methods: ['GET'])]
-    public function show(Category $category): JsonResponse
-    {
-        // Inclure les archives associées
-        $archives = $category->getArchives()->map(fn($a) => [
-            'id' => $a->getId(),
-            'title' => $a->getTitle(),
-            'description' => $a->getDescription(),
-            'author' => $a->getAuthorName(),
-            'status' => $a->getStatus(),
-            'createdAt' => $a->getCreatedAt()->format('Y-m-d H:i:s')
-        ])->toArray();
-
-        return new JsonResponse([
-            'category' => $category->toArray(),
-            'archives' => $archives
-        ], JsonResponse::HTTP_OK);
+#[Route('/{id}', name: 'category_show', methods: ['GET'])]
+public function show(?Category $category): JsonResponse
+{
+    if (!$category) {
+        return $this->json(['error' => 'Catégorie introuvable'], 404);
     }
+
+    $archives = [];
+    foreach ($category->getArchives() as $archive) {
+        $archives[] = [
+            'id' => $archive->getId(),
+            'title' => $archive->getTitle(),
+            'description' => $archive->getDescription(),
+            'author' => $archive->getAuthor(),
+            'status' => $archive->getStatus(),
+            'createdAt' => $archive->getCreatedAt()->format('Y-m-d H:i:s'),
+        ];
+    }
+
+    return $this->json([
+        'id' => $category->getId(),
+        'title' => $category->getTitle(),
+        'description' => $category->getDescription(),
+        'archives' => $archives,
+    ]);
+}
 }

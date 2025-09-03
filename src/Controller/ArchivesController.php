@@ -2,9 +2,9 @@
 
 namespace App\Controller;
 
-use App\Repository\CategoryRepository;
 use App\Entity\Archives;
 use App\Repository\ArchivesRepository;
+use App\Repository\CategoryRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -14,187 +14,208 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 #[Route('/api/archives', name: 'archives_')]
 final class ArchivesController extends AbstractController
 {
-   #[Route('/create', name: 'create', methods: ['POST'])]
-public function create(
-    Request $request,
-    EntityManagerInterface $em,
-    CategoryRepository $categoryRepo
-): JsonResponse {
-    // Vérification de l'utilisateur
-    if (!$this->getUser()) {
-        return new JsonResponse(['error' => 'User not authenticated'], JsonResponse::HTTP_UNAUTHORIZED);
+    // URL absolue pour images (pour le tableau "images")
+    private function absUrl(string $relPathOrName): string
+    {
+        $rel = str_starts_with($relPathOrName, '/uploads/')
+            ? $relPathOrName
+            : '/uploads/images/' . ltrim($relPathOrName, '/');
+        return 'http://127.0.0.1:8000' . $rel;
     }
 
-    // Récupération des champs
-    $title = $request->request->get('title');
-    $description = $request->request->get('description');
-    $author = $request->request->get('author');
-    $categoryId = $request->request->get('category_id');
-
-    // Vérification des champs obligatoires
-    if (!$title || !$description || !$author || !$categoryId) {
-        return new JsonResponse(['error' => 'Missing required fields'], JsonResponse::HTTP_BAD_REQUEST);
+    // Chemin relatif pour "image" (home)
+    private function relPath(string $nameOrPath): string
+    {
+        return str_starts_with($nameOrPath, '/uploads/')
+            ? $nameOrPath
+            : '/uploads/images/' . ltrim($nameOrPath, '/');
     }
 
-    // Récupération de la catégorie
-    $category = $categoryRepo->find($categoryId);
-    if (!$category) {
-        return new JsonResponse(['error' => 'Invalid category'], JsonResponse::HTTP_BAD_REQUEST);
+    // Sérialisation UNIFORME (pas de toArray dans l’entité)
+    private function serializeArchive(Archives $a): array
+    {
+        $names = $a->getImages() ?? [];
+        if (!is_array($names)) $names = $names ? [$names] : [];
+
+        $relList = array_map(fn($n) => $this->relPath((string)$n), $names);
+        $absList = array_map(fn($rel) => $this->absUrl($rel), $relList);
+
+        return [
+            'id'         => $a->getId(),
+            'title'      => $a->getTitle(),
+            'description'=> $a->getDescription(),
+            'author'     => $a->getAuthor(),
+            'status'     => $a->getStatus(),
+            'createdAt'  => $a->getCreatedAt()?->format('Y-m-d H:i:s'),
+            'image'      => $relList[0] ?? null,  // home
+            'images'     => $absList,             // ArchiveList + page détail
+            'category'   => $a->getCategory()?->getTitle(),
+            'user'       => $a->getUser()?->getUsername(),
+        ];
     }
 
-    // Gestion des images
-    $imageFiles = $request->files->get('images');
-if ($imageFiles && !is_array($imageFiles)) {
-    $imageFiles = [$imageFiles];
+    #[Route('', name: 'list', methods: ['GET'])]
+public function index(Request $request, ArchivesRepository $repo): JsonResponse
+{
+    $status = $request->query->get('status', 'accepted');
+    $search = trim((string) $request->query->get('search', ''));
+
+    // Filtres optionnels
+    $cat = $request->query->get('category');
+    $uid = $request->query->get('userId');
+
+    // Pas de recherche → logique existante (findBy)
+    if ($search === '') {
+        $criteria = ['status' => $status];
+        if ($cat) $criteria['category'] = $cat;
+        if ($uid) $criteria['user']     = $uid;
+
+        $list = $repo->findBy($criteria, ['createdAt' => 'DESC']);
+        return $this->json(array_map(fn($a) => $this->serializeArchive($a), $list));
+    }
+
+    // Avec recherche → QueryBuilder (title/description/author)
+    $qb = $repo->createQueryBuilder('a')
+        ->andWhere('a.status = :status')->setParameter('status', $status)
+        ->andWhere('LOWER(a.title) LIKE :q OR LOWER(a.description) LIKE :q OR LOWER(a.author) LIKE :q')
+        ->setParameter('q', '%'.mb_strtolower($search).'%')
+        ->orderBy('a.createdAt', 'DESC');
+
+    if ($cat) $qb->andWhere('a.category = :cat')->setParameter('cat', $cat);
+    if ($uid) $qb->andWhere('a.user = :uid')->setParameter('uid', $uid);
+
+    $list = $qb->getQuery()->getResult();
+    return $this->json(array_map(fn($a) => $this->serializeArchive($a), $list));
 }
-$uploadedImages = [];
 
-    if ($imageFiles && is_array($imageFiles)) {
-        $allowedMimeTypes = ['image/jpeg', 'image/jpg','image/png', 'image/webp'];
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    #[Route('/{id}', name: 'show', methods: ['GET'])]
+    public function show(int $id, ArchivesRepository $repo): JsonResponse
+    {
+        $a = $repo->find($id);
+        if (!$a) return $this->json(['error' => 'Archive not found'], 404);
+        return $this->json($this->serializeArchive($a));
+    }
 
-        foreach ($imageFiles as $imageFile) {
-            if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
-                return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
-            }
-
-            if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
-                return new JsonResponse(['error' => 'Invalid file extension'], JsonResponse::HTTP_BAD_REQUEST);
-            }
-
-            $fileName = uniqid('archive_') . '.' . $imageFile->guessExtension();
-            $imageFile->move($this->getParameter('upload_image_directory'), $fileName);
-
-            $uploadedImages[] = '/uploads/images/' . $fileName;
+    #[Route('/create', name: 'create', methods: ['POST'])]
+    public function create(Request $request, EntityManagerInterface $em, CategoryRepository $catRepo): JsonResponse
+    {
+        if (!$this->getUser()) {
+            return $this->json(['error' => 'User not authenticated'], 401);
         }
+
+        $title       = $request->request->get('title');
+        $description = $request->request->get('description');
+        $author      = $request->request->get('author');
+        $categoryId  = $request->request->get('category_id');
+
+        if (!$title || !$description || !$author || !$categoryId) {
+            return $this->json(['error' => 'Missing required fields'], 400);
+        }
+
+        $category = $catRepo->find($categoryId);
+        if (!$category) {
+            return $this->json(['error' => 'Invalid category'], 400);
+        }
+
+        $files = $request->files->all('images') ?: $request->files->get('images', []);
+        if (!is_array($files)) $files = [$files];
+
+        $allowedMime = ['image/jpeg','image/png','image/webp','image/gif'];
+        $allowedExt  = ['jpg','jpeg','png','webp','gif'];
+        $uploadDir   = rtrim((string)$this->getParameter('upload_image_directory'), DIRECTORY_SEPARATOR);
+
+        $names = [];
+        foreach ($files as $file) {
+            if (!$file) continue;
+            if (!in_array($file->getMimeType(), $allowedMime, true)) {
+                return $this->json(['error' => 'Unsupported image type'], 400);
+            }
+            $ext = $file->guessExtension();
+            if (!in_array($ext, $allowedExt, true)) {
+                return $this->json(['error' => 'Invalid file extension'], 400);
+            }
+            $name = uniqid('archive_') . '.' . $ext;
+            $file->move($uploadDir, $name);
+            $names[] = $name; // on stocke UNIQUEMENT le nom
+        }
+
+        $a = new Archives();
+        $a->setTitle($title);
+        $a->setDescription($description);
+        $a->setAuthor($author);
+        $a->setCreatedAt(new \DateTimeImmutable());
+        $a->setStatus($this->isGranted('ROLE_ADMIN') ? 'accepted' : 'pending');
+        $a->setImages($names);
+        $a->setCategory($category);
+        $a->setUser($this->getUser());
+
+        $em->persist($a);
+        $em->flush();
+
+        return $this->json(['message' => 'Archive created', 'archive' => $this->serializeArchive($a)], 201);
     }
-
-    // Création de l'archive
-    $archive = new Archives();
-    $archive->setTitle($title);
-    $archive->setDescription($description);
-    $archive->setAuthor($author);
-    $archive->setCreatedAt(new \DateTimeImmutable());
-    $status = $this->isGranted('ROLE_ADMIN') ? 'accepted' : 'pending';
-    $archive->setStatus($status);
-    $archive->setImages($uploadedImages);
-    $archive->setCategory($category); // <-- association de la catégorie
-
-    $em->persist($archive);
-    $em->flush();
-
-    return new JsonResponse([
-        'message' => 'Archive successfully created',
-        'archive' => $archive->toArray()
-    ], JsonResponse::HTTP_CREATED);
-}
 
     #[Route('/{id}', name: 'update', methods: ['POST'])]
     public function update(Request $request, Archives $archive, EntityManagerInterface $em): JsonResponse
     {
-        $title = $request->request->get('title');
+        $title       = $request->request->get('title');
         $description = $request->request->get('description');
-        $author = $request->request->get('author');
-    
-        if ($title) {
-            $archive->setTitle($title);
-        }
-    
-        if ($description) {
-            $archive->setDescription($description);
-        }
-    
-        if ($author) {
-            $archive->setAuthor($author);
+        $author      = $request->request->get('author');
+
+        if ($title)       $archive->setTitle($title);
+        if ($description) $archive->setDescription($description);
+        if ($author)      $archive->setAuthor($author);
+
+        $files = $request->files->all('images') ?: $request->files->get('images', []);
+        if (!is_array($files)) $files = [$files];
+
+        if (count($files) > 0) {
+            $allowedMime = ['image/jpeg','image/png','image/webp','image/gif'];
+            $allowedExt  = ['jpg','jpeg','png','webp','gif'];
+            $uploadDir   = rtrim((string)$this->getParameter('upload_image_directory'), DIRECTORY_SEPARATOR);
+
+            // supprimer anciennes
+            foreach (($archive->getImages() ?? []) as $old) {
+                $path = $uploadDir . DIRECTORY_SEPARATOR . ltrim((string)$old, DIRECTORY_SEPARATOR);
+                if (is_file($path)) @unlink($path);
+            }
+
+            $names = [];
+            foreach ($files as $file) {
+                if (!$file) continue;
+                if (!in_array($file->getMimeType(), $allowedMime, true)) {
+                    return $this->json(['error' => 'Unsupported image type'], 400);
+                }
+                $ext = $file->guessExtension();
+                if (!in_array($ext, $allowedExt, true)) {
+                    return $this->json(['error' => 'Invalid file extension'], 400);
+                }
+                $name = uniqid('archive_') . '.' . $ext;
+                $file->move($uploadDir, $name);
+                $names[] = $name;
+            }
+            $archive->setImages($names);
         }
 
-        $imageFile = $request->files->get('image');
-        
-        if ($imageFile) {
-            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-
-        if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
-            return new JsonResponse(['error' => 'Unsupported image type'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-
-       if (!in_array($imageFile->guessExtension(), $allowedExtensions)) {
-            return new JsonResponse(['error' => 'Invalid file extension'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-    
-        // Suppression de l’ancienne image si elle existe
-        $oldImagePath = $this->getParameter('kernel.project_dir') . '/public' . $archive->getImage();
-        if ($archive->getImage() && file_exists($oldImagePath)) {
-            unlink($oldImagePath);
-        }
-    
-        // Génération d’un nouveau nom de fichier
-        $fileName = uniqid('archive_') . '.' . $imageFile->guessExtension();
-        $imageFile->move($this->getParameter('upload_image_directory'), $fileName);
-        $archive->setImage('/uploads/images/' . $fileName);
-        }
-        
-    
-        // Mise à jour des champs
-        /*$archive->setTitle($title);
-        $archive->setDescription($description);
-        $archive->setAuthor($author);*/
-    
         $em->flush();
-    
-        return new JsonResponse([
-            'message' => 'Archive updated',
-            'archive_id' => $archive->getId()
-        ], JsonResponse::HTTP_OK);
+
+        return $this->json(['message' => 'Archive updated', 'archive' => $this->serializeArchive($archive)]);
     }
-    
-
-
-    
-    #[Route('', name: 'list', methods: ['GET'])]
-    public function index(ArchivesRepository $repo): JsonResponse
-    {
-        $archives = $repo->findBy(['status' => 'accepted']);
-        $data = array_map(fn($a) => $a->toArray(), $archives);
-
-        return new JsonResponse($data, JsonResponse::HTTP_OK);
-    }
-
-    #[Route('/admin/pending', name: 'pending', methods: ['GET'])]
-    public function getPendingArchives(ArchivesRepository $repo): JsonResponse
-    {
-        $pending = $repo->findBy(['status' => 'pending']);
-        if (empty($pending)) {
-            return new JsonResponse(['message' => 'No pending archives'], JsonResponse::HTTP_OK);
-        }
-        $data = array_map(fn($a) => $a->toArray(), $pending);
-
-        return new JsonResponse($data, JsonResponse::HTTP_OK);
-    }
-
-    #[Route('/{id}', name: 'show', methods: ['GET'])]
-    public function getArchive(Archives $archive): JsonResponse
-    {
-        if (!$archive->getStatus()) {
-            return new JsonResponse(['error' => 'Archive not yet validated'], JsonResponse::HTTP_NOT_FOUND);
-        }
-        return new JsonResponse($archive->toArray(), JsonResponse::HTTP_OK);
-    }
-
-
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     public function delete(Archives $archive, EntityManagerInterface $em): JsonResponse
     {
-        $imagePath = $this->getParameter('kernel.project_dir') . '/public' . $archive->getImage();
-        if (file_exists($imagePath)) {
-            unlink($imagePath);
+        $uploadDir = rtrim((string)$this->getParameter('upload_image_directory'), DIRECTORY_SEPARATOR);
+
+        foreach (($archive->getImages() ?? []) as $name) {
+            $path = $uploadDir . DIRECTORY_SEPARATOR . ltrim((string)$name, DIRECTORY_SEPARATOR);
+            if (is_file($path)) @unlink($path);
         }
-    
+
         $em->remove($archive);
         $em->flush();
-    
-        return new JsonResponse(['message' => 'Archive deleted'], JsonResponse::HTTP_OK);
+
+        return $this->json(['message' => 'Archive deleted']);
     }
 
     #[Route('/admin/{id}/review', name: 'review', methods: ['PATCH'])]
@@ -204,16 +225,22 @@ $uploadedImages = [];
         $action = $data['status'] ?? null;
 
         if ($action === 'accept') {
-            $archive->setStatus("accepted");
+            $archive->setStatus('accepted');
             $em->flush();
-            return new JsonResponse(['message' => 'Archive accepted'], JsonResponse::HTTP_OK);
-        }
-        if ($action === 'reject') {
-            $em->remove($archive);
-            $em->flush();
-            return new JsonResponse(['message' => 'Archive rejected and deleted'], JsonResponse::HTTP_OK);
+            return $this->json(['message' => 'Archive accepted']);
         }
 
-        return new JsonResponse(['error' => 'Invalid action'], JsonResponse::HTTP_BAD_REQUEST);
+        if ($action === 'reject') {
+            $uploadDir = rtrim((string)$this->getParameter('upload_image_directory'), DIRECTORY_SEPARATOR);
+            foreach (($archive->getImages() ?? []) as $name) {
+                $path = $uploadDir . DIRECTORY_SEPARATOR . ltrim((string)$name, DIRECTORY_SEPARATOR);
+                if (is_file($path)) @unlink($path);
+            }
+            $em->remove($archive);
+            $em->flush();
+            return $this->json(['message' => 'Archive rejected and deleted']);
+        }
+
+        return $this->json(['error' => 'Invalid action'], 400);
     }
 }

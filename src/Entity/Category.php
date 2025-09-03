@@ -2,13 +2,12 @@
 
 namespace App\Entity;
 
-use App\Repository\CategoryRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use App\Entity\Archive;
 
-#[ORM\Entity(repositoryClass: CategoryRepository::class)]
+#[ORM\Entity]
 class Category
 {
     #[ORM\Id]
@@ -91,11 +90,11 @@ class Category
         return $this->archives;
     }
 
-    public function addArchive(Archive $archive): self
+    public function addArchive(Archive $archives): self
     {
-        if (!$this->archives->contains($archive)) {
-            $this->archives->add($archive);
-            $archive->setCategory($this);
+        if (!$this->archives->contains($archives)) {
+            $this->archives->add($archives);
+            $archives->setCategory($this);
         }
         return $this;
     }
@@ -116,7 +115,10 @@ class Category
             'id' => $this->getId(),
             'title' => $this->getTitle(),
             'description' => $this->getDescription(),
-            'image' => $this->getImage(),
+            'image' => $this->getImage() 
+            ? 'http://127.0.0.1:8000/uploads/category/' 
+            . $this->getImage() 
+            : null,            
             'createdAt' => $this->getCreatedAt()->format('Y-m-d H:i:s'),
         ];
     }
